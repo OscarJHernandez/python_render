@@ -5,7 +5,7 @@ import light.photon as photon
 class PointSource(light_source.Light):
 
 
-    def __init__(self,x0,y0,z0,T=220,ax=None):
+    def __init__(self,x0,y0,z0,T=220,ax=None,x_min=-10.0,x_max=10.0,y_min=-10.0,y_max=10.0,z_min=-10.0,z_max=10.0):
 
 
         self.x0 = x0
@@ -16,6 +16,7 @@ class PointSource(light_source.Light):
         super().__init__(x0, y0, z0,T,ax)
 
         ax.scatter(x0, y0, z0, marker="o", color="black")
+
 
 
         return None

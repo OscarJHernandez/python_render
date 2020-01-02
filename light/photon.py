@@ -6,7 +6,7 @@ class Photon:
     The photon class
     '''
 
-    def __init__(self, x0, y0, z0, theta, phi,wavelength=600):
+    def __init__(self, x0=0, y0=0, z0=0, theta=0, phi=0, vx0=0,vy0=0,vz0=0,  wavelength=600, path=[],time=[],reflected= False ):
 
 
         # The wavelength of the photon
@@ -16,19 +16,28 @@ class Photon:
         self.x0 = x0
         self.y0 = y0
         self.z0 = z0
-
-        # The direction of the ray
         self.c = 1.0
-        self.theta = theta
-        self.phi = phi
 
-        # The trajectory
-        self.path = []
-        self.path.append([x0,y0,z0])
+        self.reflected = reflected
 
-        # The parametrized time
-        self.time = []
-        self.time.append([0.0])
+        if(vx0==0 and vy0==0 and vz0==0 and theta != 0 and phi !=0):
+            # The direction of the ray
+            self.theta = theta
+            self.phi = phi
+        else:
+            self.theta = np.arctan(vy0/vx0)
+            self.phi = np.arccos(vz0/np.sqrt(vx0**2+vy0**2+vz0**2))
+
+
+        if(path==[] and time==[]):
+            self.path = []
+            self.path.append([x0,y0,z0])
+            # The parametrized time
+            self.time = []
+            self.time.append([0.0])
+        else:
+            self.path = path
+            self.time = time
 
         return None
 
@@ -55,6 +64,19 @@ class Photon:
 
         return None
 
+
+    def return_velocity_angles(self):
+        return self.theta, self.phi
+
+    def return_velocity_unit_vector(self):
+        # velocity vector
+        vx0 = np.sin(self.theta) * np.cos(self.phi)
+        vy0 = np.sin(self.theta) * np.sin(self.phi)
+        vz0 = np.cos(self.theta)
+        v = np.asarray([vx0,vy0,vz0])
+
+        return v
+
     def return_position(self):
         return self.x0, self.y0, self.z0
 
@@ -78,7 +100,7 @@ class Photon:
 
         return color
 
-    def plot_photon(self,ax):
+    def plot_photon(self,ax,alpha=0.1):
         '''
         plots the photon
 
@@ -88,6 +110,6 @@ class Photon:
 
         x_path, y_path, z_path, t_path = self.return_path()
         photon_color = self.return_color()
-        ax.plot(x_path,y_path,z_path,color=photon_color,alpha=0.1)
+        ax.plot(x_path,y_path,z_path,color=photon_color,alpha=alpha)
         return None
 

@@ -2,28 +2,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import objects.ball as ball
+import objects.wall as wall
 import light.photon as photon
 import light.point_source as point_source
-
+import utils as utils
 
 
 
 
 class Camera:
 	
-	def __init__(self,x0,y0,z0,Ngrid):
+	def __init__(self,x0,y0,z0,radius,Ngrid):
 		self.x0 = x0
 		self.y0 = y0
 		self.z0 = z0
+		self.radius = radius
 		self.image = np.zeros((Ngrid,Ngrid))
 		return None
 		
 	def convert_spherical_to_cartesian(self,theta,phi):
 
 		print("theta: ", theta, "phi: ", phi)
-		x = self.x0+np.sin(theta)*np.cos(phi)
-		y = self.y0+np.sin(theta)*np.sin(phi)
-		z = self.z0+np.cos(theta)
+		x = self.x0+self.radius*np.sin(theta)*np.cos(phi)
+		y = self.y0+self.radius*np.sin(theta)*np.sin(phi)
+		z = self.z0+self.radius*np.cos(theta)
 
 		p = np.zeros(3)
 		p[0],p[1],p[2] = x,y,z
@@ -32,7 +34,50 @@ class Camera:
 		print("")
 
 		return p
+
+	def detection(self,p1):
+		'''
+		Updates the Camera grid if it detected a photon
+
+		:param p1:
+		:return:
+		'''
+
+		detection = False
+		tol = 1e-2
+
+		x1,y1,z1 = p1
+		normal = self.normal
+		d_val = self.d
+		p0 = self.p_upper_right
+
+
+		# Compute the distance from the photon point to the plane
+		distance = abs(normal.dot(p0-p1))
+
+
+		if(distance< tol and self.x_min <= x1<= self.x_max and self.y_min <= y1<= self.y_max and self.z_min <= z1<= self.z_max):
+			detection = True
+
+		return detection
+
 		
+
+	def update_image(self,photon):
+		'''
+		update the image that the camera has
+
+		:param photon:
+		:return:
+		'''
+
+
+
+
+
+		return None
+
+
 	def direction(self,theta_min,theta_max,phi_min,phi_max):
 		"""
 		The direction and maximum angles the Camera can view
@@ -52,6 +97,12 @@ class Camera:
 		p_lower_left = self.convert_spherical_to_cartesian(theta_max,phi_min)
 		p_lower_right = self.convert_spherical_to_cartesian(theta_max,phi_max)
 
+		# Save the values
+		self.p_upper_left = p_upper_left
+		self.p_upper_right = p_upper_right
+		self.p_lower_left = p_lower_left
+		self.p_lower_right = p_lower_right
+
 		x1,y1,z1 = p_lower_left
 		x2, y2, z2 = p_lower_right
 
@@ -64,8 +115,12 @@ class Camera:
 		n_surface = np.cross(v1,v2)
 		n_surface = n_surface/np.linalg.norm(n_surface)
 
+		self.normal = n_surface
+
 		# ax+by+c*z +d = 0
 		d  = -p_upper_right.dot(n_surface)
+
+		self.d = d
 
 		# create x,y
 		x_min = np.min([x1,x2,x3,x4])
@@ -76,6 +131,13 @@ class Camera:
 		z_max = np.max([z1,z2,z3,z4])
 		xx, yy = np.meshgrid(np.linspace(x_min,x_max,100) , np.linspace(y_min,y_max,100))
 
+		self.x_min = x_min
+		self.x_max = x_max
+		self.y_min = y_min
+		self.y_max = y_max
+		self.z_min = z_min
+		self.z_max = z_max
+
 		# calculate corresponding z
 		z = -(n_surface[0]*xx+n_surface[1]*yy +d)/n_surface[2]
 		z[z>z_max] = np.nan
@@ -84,7 +146,7 @@ class Camera:
 		print("Z: ", z.shape)
 		print("Z", z[0,0], xx[0,0],yy[0,0])
 
-		ax.plot_surface(xx, yy, z, alpha=0.5)
+		ax.plot_surface(xx, yy, z, alpha=1.0)
 		#======================================
 
 
@@ -131,17 +193,22 @@ class Scene:
 		ax.set_ylabel('Y Label')
 		ax.set_zlabel('Z Label')
 
+
+		self.cams = []
+
 		return None
 		
-	def init_camera(self,x0,y0,z0,theta_min,theta_max,phi_min,phi_max):
+	def init_camera(self,x0,y0,z0,theta_min,theta_max,phi_min,phi_max,radius):
 		'''
 		Initialize a Camera
 		'''
 		
-		cam = Camera(x0,y0,z0,Ngrid=100)
+		cam = Camera(x0,y0,z0,radius=radius,Ngrid=100)
 		cam.direction(theta_min,theta_max,phi_min,phi_max)
+
+		self.cams.append(cam)
 		
-		return cam
+		return None
 
 	def init_ball(self,x0=0.0,y0=0.0,z0=0.0,radius=1.0,ax=None):
 		'''
@@ -156,7 +223,31 @@ class Scene:
 		b1 = ball.Ball(x0,y0,z0,radius,ax=ax)
 		self.objects.append(b1)
 
+		# walls
+
 		return None
+
+	def init_wall(self,x0=0.0,y0=0.0,z0=0.0,Lx=0.0,Ly=0.0,Lz=0.0,ax=None):
+		w1 = wall.Wall(x0,y0,z0,Lx,Ly,Lz,ax=ax)
+		self.objects.append(w1)
+		return None
+
+	def check_photon(self,photon):
+		'''
+		Check to see if the photon is in the scene
+
+		:param photon:
+		:return:
+		'''
+
+		in_scene = False
+
+		xp,yp,zp = photon.return_position()
+
+		if( self.x_min<xp< self.x_max and self.y_min < yp < self.y_max and self.z_min < zp < self.z_max):
+			in_scene = True
+
+		return in_scene
 
 	def init_light(self,x0,y0,z0,T=220,ax=None):
 		'''
@@ -173,24 +264,47 @@ class Scene:
 		light = point_source.PointSource(x0,y0,z0,T=220,ax=ax)
 
 		# Generate many photons in random directions
-		photons = light.generate_photons(N_photons=500)
+		photons = light.generate_photons(N_photons=20000)
 
-		obj = self.objects[0]
-
-		print('Object: ', obj.return_name())
 
 		# Time evolve all of the photons, loop over objects in the scene
 		# depending on the type of object, resolve the collision
-		for t in range(0,100):
+		for t in range(0,800):
 
 			for k in range(len(photons)):
-				photons[k].step_forward(1.0)
-				photon_position = photons[k].return_position()
-				if(obj.check_collision(photon_position)==True):
-					print('Collision')
 
-		for k in range(len(photons)):
-			photons[k].plot_photon(ax)
+				in_scene = self.check_photon(photons[k])
+
+				# Only evlolve in-scence photons
+				if (in_scene == True):
+					photons[k].step_forward(0.05)
+
+				photon_position = photons[k].return_position()
+				xp,yp,zp = photon_position
+
+				# Loop over all the objects in the scene to check for photon-object collisions
+				for i in range(len(self.objects)):
+					obj = self.objects[i]
+
+					if(obj.check_collision(photon_position)==True ):
+						photons[k] = obj.resolve_collision(photons[k])
+						ax.scatter(xp,yp,zp, marker=".", color=utils.wavelength_to_rgb(photons[k].wavelength,gamma=1.0),alpha=1.0)
+
+				# Loop over all the cameras to update their images
+				for i in range(len(self.cams)):
+					cam = self.cams[i]
+
+					if(cam.detection(photon_position)== True and photons[k].reflected== True):
+						ax.scatter(xp,yp,zp, marker="o", color=utils.wavelength_to_rgb(photons[k].wavelength,gamma=1.0),alpha=0.3)
+						print('Photon detected!')
+
+
+		#for k in range(len(photons)):
+
+		#	photons[k].plot_photon(ax)
+
+			#if(photons[k].reflected==True):
+			#	photons[k].plot_photon(ax)
 
 		return light
 
@@ -199,21 +313,19 @@ if __name__ == '__main__':
 
 	fig = plt.figure()
 	ax = fig.add_subplot(111, projection='3d')
-	scene1 = Scene()
+	scene1 = Scene(L=6)
 	#cam1 = scene1.init_camera(x0=0.0,y0=5.0,z0=5.0,theta_min=np.pi*0.5,theta_max=np.pi*0.25,phi_min=0.0,phi_max=np.pi*0.5)
-	cam1 = scene1.init_camera(x0=-5.0,y0=-5.0,z0=5.0,theta_min=np.pi*0.5,theta_max=np.pi*0.8,phi_min=0.0,phi_max=np.pi*0.5)
+	scene1.init_camera(x0=-5.0,y0=-5.0,z0=2.0,theta_min=np.pi*0.25,theta_max=np.pi*0.75,phi_min=0.0,phi_max=np.pi*0.5,radius=4)
+	#scene1.init_camera(x0=-4.0, y0=-4.0, z0=1.0, theta_min=np.pi * 0.25, theta_max=np.pi * 0.75, phi_min=0.0,phi_max=np.pi * 0.5, radius=3)
+
+	cam1 = scene1.cams[0]
 	photon1 =cam1.initialize_photon(theta=np.pi/8.0,phi=np.pi*0.5,wavelength=600)
-	scene1.init_ball(ax=ax)
-	scene1.init_light(x0=5.0,y0=5.0,z0=5.0,T=220,ax=ax)
-	#photon1.step_forward(1)
-	#photon1.step_forward(1)
-	#photon1.step_forward(1)
-	#photon1.step_forward(1)
-	#x_path, y_path, z_path, t_path = photon1.return_path()
-	#photon_color = photon1.return_color()
-	#print('color: ', photon1.wavelength,photon_color)
-	#ax.plot(x_path,y_path,z_path,color=photon_color)
-	#print(photon1.return_position())
+	scene1.init_ball(ax=None,radius=2)
+	#scene1.init_wall(ax=None, z0=6, Lx=5.0, Ly=5.0, Lz=0.0)
+	#
+	scene1.init_wall(ax=None,z0=-5,Lx=5.0,Ly=5.0,Lz=0.0)
+	scene1.init_light(x0=-2.0,y0=-2.0,z0=3.0,T=220,ax=ax)
+	#scene1.init_light(x0=-3.0, y0=-3.0, z0=5.0, T=220, ax=ax)
 	plt.show()
 
 
