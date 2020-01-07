@@ -249,7 +249,7 @@ class Scene:
 
 		return in_scene
 
-	def init_light(self,x0,y0,z0,T=220,ax=None):
+	def init_light(self,x0,y0,z0,T=220,ax=None,N_photons=5000):
 		'''
 		Initialize the light source
 
@@ -264,7 +264,7 @@ class Scene:
 		light = point_source.PointSource(x0,y0,z0,T=220,ax=ax)
 
 		# Generate many photons in random directions
-		photons = light.generate_photons(N_photons=20000)
+		photons = light.generate_photons(N_photons=N_photons)
 
 
 		# Time evolve all of the photons, loop over objects in the scene
@@ -321,10 +321,8 @@ if __name__ == '__main__':
 	cam1 = scene1.cams[0]
 	photon1 =cam1.initialize_photon(theta=np.pi/8.0,phi=np.pi*0.5,wavelength=600)
 	scene1.init_ball(ax=None,radius=2)
-	#scene1.init_wall(ax=None, z0=6, Lx=5.0, Ly=5.0, Lz=0.0)
-	#
 	scene1.init_wall(ax=None,z0=-5,Lx=5.0,Ly=5.0,Lz=0.0)
-	scene1.init_light(x0=-2.0,y0=-2.0,z0=3.0,T=220,ax=ax)
+	scene1.init_light(x0=-2.0,y0=-2.0,z0=3.0,T=220,ax=ax,N_photons=8000)
 	#scene1.init_light(x0=-3.0, y0=-3.0, z0=5.0, T=220, ax=ax)
 	plt.show()
 
